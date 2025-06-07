@@ -1,6 +1,6 @@
 {
   "name": "OrgPhotos OneDrive",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "slug": "orgphotos-onedrive",
   "description": "Třídí soubory z SOURCE_DIR do TARGET_DIR na OneDrive podle roku/měsíce.",
   "startup": "services",
