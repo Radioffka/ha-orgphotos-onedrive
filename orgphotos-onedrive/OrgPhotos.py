@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OrgPhotos – robustní třídění OneDrive fotek (verze 2.10, opravené URL)
+OrgPhotos – robustní třídění OneDrive fotek (verze 2.1.6, opravené URL)
 ====================================================================
 
 Tato verze:

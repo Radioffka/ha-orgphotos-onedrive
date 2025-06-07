@@ -13,9 +13,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # ---- Python závislosti ----
 RUN pip install --no-cache-dir \
       piexif \
-      openpyxl \
-      watchdog \
-      dateparser \
       msal \
       requests
 

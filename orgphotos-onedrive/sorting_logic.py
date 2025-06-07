@@ -9,8 +9,7 @@ from typing import Optional, Tuple
 # --------------------------------------------------
 UTC = dt.timezone.utc
 INVALID_LOWER = dt.datetime(1990, 1, 1, tzinfo=UTC)
-# Horní hranici nastavíme na aktuální čas + 1 den
-INVALID_UPPER = dt.datetime.now(UTC) + dt.timedelta(days=1)
+# Horní hranici nastavíme dynamicky na aktuální čas + 1 den
 
 # --------------------------------------------------
 # Vzory pro extrakci data z názvu souboru
@@ -87,12 +86,13 @@ def date_from_name(name: str) -> Optional[dt.datetime]:
 
 def validate_date(dt_obj: Optional[dt.datetime]) -> bool:
     """
-    Zkontroluje, zda daný datetime objekt je v rozmezí [INVALID_LOWER, INVALID_UPPER].
+    Zkontroluje, zda daný datetime objekt je v rozmezí [INVALID_LOWER, aktuální čas + 1 den].
     Vrací True, pokud dt_obj není None a spadá do rozmezí, jinak False.
     """
     if dt_obj is None:
         return False
-    return INVALID_LOWER <= dt_obj <= INVALID_UPPER
+    invalid_upper = dt.datetime.now(UTC) + dt.timedelta(days=1)
+    return INVALID_LOWER <= dt_obj <= invalid_upper
 
 # --------------------------------------------------
 # Hlavní funkce: pyramida jistoty pick_date
