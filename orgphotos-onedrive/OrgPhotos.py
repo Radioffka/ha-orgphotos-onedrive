@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-OrgPhotos – robustní třídění OneDrive fotek (verze 2.10, opravené URL)
-====================================================================
+OrgPhotos – robust OneDrive photo sorting (version 2.1.6, fixed URLs)
+===================================================================
 
-Tato verze:
-  • Deleguje “pyramidu jistoty” do sorting_logic.py (pick_date, validate_date).
-  • Používá původní /me/drive/… URL se správným trailingem zavináče (:/ i :/children).
-  • Všechny 404/400/… jsou ošetřeny metodou requests.raise_for_status() tak, 
-    jak to dělala původní verze.
-  • Debug-výpisy, aby bylo jasné, co je ve SOURCE_DIR/TARGET_DIR.
+This version:
+  • Delegates the "pyramid of certainty" to sorting_logic.py (pick_date, validate_date).
+  • Uses the original /me/drive/… URLs with the correct trailing at sign (:/ and :/children).
+  • All 404/400/… responses are handled via requests.raise_for_status() as in the original version.
+  • Debug output shows what's in SOURCE_DIR and TARGET_DIR.
 """
 
 import os
@@ -20,19 +19,19 @@ import datetime as dt
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Přidání složky se skripty do sys.path (aby Python našel sorting_logic.py)
+# Add the script directory to sys.path so Python can find sorting_logic.py
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
 # ---------------------------------------------------------------------------
-# Import externí logiky třídění (pyramida jistoty)
+# Import external sorting logic (pyramid of certainty)
 # ---------------------------------------------------------------------------
 from sorting_logic import pick_date, validate_date
 
 # ---------------------------------------------------------------------------
-# Debug: ověříme, co nám run.sh do ENV předal
+# Debug: verify what run.sh passed via ENV
 # ---------------------------------------------------------------------------
 LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
 logging.basicConfig(
@@ -45,7 +44,7 @@ log.info(f"DEBUG SOURCE_DIR = {os.getenv('SOURCE_DIR')}")
 log.info(f"DEBUG TARGET_DIR = {os.getenv('TARGET_DIR')}")
 
 # ---------------------------------------------------------------------------
-# ENV proměnné (exportované z run.sh / Home Assistant GUI)
+# Environment variables (exported from run.sh / Home Assistant GUI)
 # ---------------------------------------------------------------------------
 CLIENT_ID     = os.getenv("ONEDRIVE_CLIENT_ID")
 TENANT_ID     = os.getenv("ONEDRIVE_TENANT_ID", "common")
@@ -55,14 +54,14 @@ TARGET_DIR    = os.getenv("TARGET_DIR", "OrgPhotos")
 DEBOUNCE_SECS = int(os.getenv("DEBOUNCE_SECS", "20"))
 UNSORTED      = f"{TARGET_DIR}/Unsorted"
 
-# Ověř, že máme ONEDRIVE_CLIENT_ID a soubor s refresh tokenem
+# Ensure we have ONEDRIVE_CLIENT_ID and the refresh token file
 if not (CLIENT_ID and REFRESH_FP and os.path.exists(REFRESH_FP)):
     sys.exit("[ERROR] Missing ONEDRIVE_CLIENT_ID or REFRESH_TOKEN file (ONEDRIVE_REFRESH_FILE)")
 
 log.info(f"Log level set to {log.getEffectiveLevel()}")
 
 # ---------------------------------------------------------------------------
-# Globální proměnná pro HEADERS (access token se tam uloží po refreshi)
+# Global variable for HEADERS (access token stored there after refresh)
 # ---------------------------------------------------------------------------
 HEADERS: dict[str, str] = {}
 TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
@@ -70,9 +69,9 @@ ACCESS_TOKEN: str = ""
 
 def refresh_access_token() -> None:
     """
-    Načte refresh token ze souboru a vymění jej za access token.
-    Používá scope 'https://graph.microsoft.com/Files.ReadWrite.All offline_access',
-    přesně jako originální verze 2.10.
+    Read the refresh token from file and exchange it for an access token.
+    Uses scope 'https://graph.microsoft.com/Files.ReadWrite.All offline_access',
+    exactly like the original version 2.10.
     """
     global ACCESS_TOKEN, HEADERS
     try:
@@ -101,7 +100,7 @@ def refresh_access_token() -> None:
     ACCESS_TOKEN = tok.get("access_token", "")
     HEADERS = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
 
-    # Pokud Graph vrátil i nový refresh_token, uložíme jej zpět
+    # If Graph returned a new refresh_token, save it back
     if tok.get("refresh_token"):
         try:
             with open(REFRESH_FP, "w") as f:
@@ -112,23 +111,23 @@ def refresh_access_token() -> None:
 
 def ensure_token():
     """
-    Pokud nemáme ACCESS_TOKEN (HEADERS je prázdné), zavoláme refresh_access_token().
+    If we don't have an ACCESS_TOKEN (HEADERS is empty), call refresh_access_token().
     """
     if not ACCESS_TOKEN:
         refresh_access_token()
 
 # ---------------------------------------------------------------------------
-# Wrapper pro volání Graph API (requests + raise_for_status())
+# Wrapper for calling the Graph API (requests + raise_for_status())
 # ---------------------------------------------------------------------------
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
 def graph_request(method: str, endpoint: str, params=None, json_body=None):
     """
-    1) ensure_token() – udržuje HEADERS s platným Bearer tokenem.
-    2) Sestaví URL = f"{GRAPH_BASE}/{endpoint}".
-    3) Pokud status == 401 → refresh token a retry jednou.
-    4) response.raise_for_status() – vyhodí HTTPError pro jakoukoliv chybu ≥400.
-    5) V případě úspěchu vrátí response.json().
+    1) ensure_token() keeps HEADERS with a valid Bearer token.
+    2) Build URL = f"{GRAPH_BASE}/{endpoint}".
+    3) If status == 401 → refresh token and retry once.
+    4) response.raise_for_status() raises HTTPError for any error ≥400.
+    5) On success returns response.json().
     """
     ensure_token()
     url = f"{GRAPH_BASE}/{endpoint}"
@@ -148,38 +147,38 @@ def graph_request(method: str, endpoint: str, params=None, json_body=None):
     return response.json()
 
 # ---------------------------------------------------------------------------
-# Vrátí ID složky v osobním OneDrive – opravené URL s koncovým ':/'
+# Return folder ID in personal OneDrive – URL fixed with trailing ':/'
 # ---------------------------------------------------------------------------
 def get_folder_id(path: str) -> Optional[str]:
     """
-    GET /me/drive/root:/{path}:/ → pokud složka existuje, vrátí jej jí ID.
-    Pokud neexistuje, response.raise_for_status() vyhodí HTTPError(404).
+    GET /me/drive/root:/{path}:/ → returns its ID if the folder exists.
+    If it does not exist, response.raise_for_status() throws HTTPError(404).
     """
     endpoint = f"me/drive/root:/{path}:/"
     data = graph_request("GET", endpoint)
     return data.get("id") if data else None
 
 # ---------------------------------------------------------------------------
-# Zajistí existenci složky, nebo ji vytvoří (rekurzivně po segmentech).
+# Ensure the folder exists or create it (recursively by segments).
 # ---------------------------------------------------------------------------
 def ensure_folder(path: str) -> str:
     """
-    1) Zkusíme ID = get_folder_id(path). Pokud existuje, vrátí ho.
-    2) Pokud get_folder_id() vyhodí 404, rozdělíme path = parent + name,
-       rekurzivně vytvoříme parent (nebo vezmeme 'root', pokud parent == ''),
-       a pak POST /me/drive/items/{parent_id}/children {name: seg, folder: {}}.
-    3) Vrátíme ID nově vytvořené (nebo již existující) složky.
+    1) Try ID = get_folder_id(path). If it exists, return it.
+    2) If get_folder_id() raises 404, split path = parent + name,
+       recursively create parent (or use 'root' if parent == ''),
+       then POST /me/drive/items/{parent_id}/children {name: seg, folder: {}}.
+    3) Return the ID of the newly created (or existing) folder.
     """
     try:
         folder_id = get_folder_id(path)
         if folder_id:
             return folder_id
     except requests.HTTPError as e:
-        # Pokud to není 404, přepošleme výjimku dál
+        # Reraise the exception if it's not a 404
         if "404" not in str(e):
             raise
 
-    # Složka neexistuje, vytvoříme ji
+    # Folder does not exist, create it
     parent, name = os.path.split(path)
     parent_id = ensure_folder(parent) if parent else 'root'
     create_endpoint = f"me/drive/items/{parent_id}/children"
@@ -192,15 +191,15 @@ def ensure_folder(path: str) -> str:
     return new_id
 
 # ---------------------------------------------------------------------------
-# Vrátí seznam položek (files + folders) ve složce `path`
+# Return a list of items (files + folders) in folder `path`
 # ---------------------------------------------------------------------------
 def list_children(path: str) -> list[dict]:
     """
-    1) Pokud path != "", endpoint = “me/drive/root:/{path}:/children”
-       jinak           = “me/drive/root/children”
-    2) Přidáme ?$select=… pro vyfiltrování sloupců.
-    3) Pokud složka neexistuje, response.raise_for_status() vyhodí 404 → skript skončí.
-    4) V opačném případě vrátí data['value'].
+    1) If path != "", endpoint = "me/drive/root:/{path}:/children"
+       otherwise = "me/drive/root/children"
+    2) Append ?$select=… to filter columns.
+    3) If the folder does not exist, response.raise_for_status() throws 404 → script exits.
+    4) Otherwise return data['value'].
     """
     if path:
         endpoint = f"me/drive/root:/{path}:/children"
@@ -214,12 +213,12 @@ def list_children(path: str) -> list[dict]:
     return data.get("value", []) if data else []
 
 # ---------------------------------------------------------------------------
-# Přesune soubor (item_id) do složky dest_folder_id
+# Move a file (item_id) into folder dest_folder_id
 # ---------------------------------------------------------------------------
 def move_item(item_id: str, dest_folder_id: str, new_name: str):
     """
-    PATCH /me/drive/items/{item_id} se {parentReference: {id: dest_folder_id}, name: new_name, conflictBehavior: replace}.
-    Pokud dojde k HTTPError, zaloguje a pokračuje.
+    PATCH /me/drive/items/{item_id} with {parentReference: {id: dest_folder_id}, name: new_name, conflictBehavior: replace}.
+    If an HTTPError occurs, log it and continue.
     """
     endpoint = f"me/drive/items/{item_id}"
     body = {
@@ -233,7 +232,7 @@ def move_item(item_id: str, dest_folder_id: str, new_name: str):
         log.error("Error moving item %s to %s", item_id, dest_folder_id)
 
 # ---------------------------------------------------------------------------
-# Jednorázový průchod složkou SOURCE_DIR
+# Single pass through SOURCE_DIR
 # ---------------------------------------------------------------------------
 def sort_once():
     moved = 0
@@ -241,7 +240,7 @@ def sort_once():
 
     entries = list_children(SOURCE_DIR)
     for entry in entries:
-        # Pokud je to složka, přeskočíme
+        # Skip if it's a folder
         if entry.get("folder") is not None:
             continue
 
@@ -249,10 +248,10 @@ def sort_once():
         item_id = entry.get("id")
         parent_ref = entry.get("parentReference", {}).get("path", "")
 
-        # 1) Pyramida jistoty (externě v sorting_logic.py)
+        # 1) Pyramid of certainty (in sorting_logic.py)
         when, method = pick_date(entry)
 
-        # 2) Validace data
+        # 2) Validate the date
         if not validate_date(when):
             dest_id = ensure_folder(UNSORTED)
             move_item(item_id, dest_id, name)
@@ -260,13 +259,13 @@ def sort_once():
             unsorted_count += 1
             continue
 
-        # 3) Platné datum → podsložka YYYY/YYYY_MM
+        # 3) Valid date → subfolder YYYY/YYYY_MM
         when_utc = when.astimezone(dt.timezone.utc)
         year = when_utc.year
         month = when_utc.month
         dest_subpath = f"{TARGET_DIR}/{year}/{year:04d}_{month:02d}"
 
-        # Pokud už je soubor ve správné podsložce, nic neděláme
+        # If the file is already in the correct subfolder, do nothing
         if parent_ref.endswith(dest_subpath):
             continue
 
@@ -281,10 +280,10 @@ def sort_once():
     log.info("Completed run: moved=%d, unsorted=%d", moved, unsorted_count)
 
 # ---------------------------------------------------------------------------
-# Hlavní smyčka (každých DEBOUNCE_SECS)
+# Main loop (every DEBOUNCE_SECS)
 # ---------------------------------------------------------------------------
 def main_loop():
-    log.info("Spouštím hlavní smyčku třídění.")
+    log.info("Starting main sorting loop.")
     try:
         while True:
             sort_once()

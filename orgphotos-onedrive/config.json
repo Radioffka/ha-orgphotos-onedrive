@@ -2,7 +2,7 @@
   "name": "OrgPhotos OneDrive",
   "version": "2.1.6",
   "slug": "orgphotos-onedrive",
-  "description": "Třídí soubory z SOURCE_DIR do TARGET_DIR na OneDrive podle roku/měsíce.",
+  "description": "Sorts files from SOURCE_DIR into TARGET_DIR on OneDrive by year/month.",
   "startup": "services",
   "init": false,
   "boot": "auto",

@@ -5,29 +5,28 @@ import datetime as dt
 from typing import Optional, Tuple
 
 # --------------------------------------------------
-# Konstanty pro časové zóny a platné rozmezí dat
+# Constants for time zones and valid date range
 # --------------------------------------------------
 UTC = dt.timezone.utc
 INVALID_LOWER = dt.datetime(1990, 1, 1, tzinfo=UTC)
-# Horní hranici nastavíme na aktuální čas + 1 den
-INVALID_UPPER = dt.datetime.now(UTC) + dt.timedelta(days=1)
+# Upper boundary is set dynamically to current time + 1 day
 
 # --------------------------------------------------
-# Vzory pro extrakci data z názvu souboru
+# Patterns for extracting a date from the filename
 # --------------------------------------------------
 FILENAME_PATTERNS = [
     "%Y:%m:%d %H:%M:%S",       # exif‐style "2023:05:12 14:30:00"
     "%Y-%m-%d %H.%M.%S",       # Windows screenshot "2023-05-12 14.30.00"
-    "%Y%m%d_%H%M%S",           # např. "20230512_143000"
-    "%Y-%m-%d_%H-%M-%S",       # např. "2023-05-12_14-30-00"
-    "%Y%m%d%H%M%S",            # např. "20230512143000"
-    "%Y-%m-%d %H:%M:%S",       # ISO‐like "2023-05-12 14:30:00"
-    "%Y%m%d",                  # pouze datum "20230512"
-    "%Y-%m-%d",                # pouze datum "2023-05-12"
+    "%Y%m%d_%H%M%S",           # e.g. "20230512_143000"
+    "%Y-%m-%d_%H-%M-%S",       # e.g. "2023-05-12_14-30-00"
+    "%Y%m%d%H%M%S",            # e.g. "20230512143000"
+    "%Y-%m-%d %H:%M:%S",       # ISO-like "2023-05-12 14:30:00"
+    "%Y%m%d",                  # date only "20230512"
+    "%Y-%m-%d",                # date only "2023-05-12"
 ]
 
 # --------------------------------------------------
-# Generické regexové vzory, pokud žádný z výše nepadne
+# Generic regex patterns if none of the above match
 # --------------------------------------------------
 GENERIC_PATTERNS = [
     # yyyyMMdd_HHmmss
@@ -41,11 +40,11 @@ GENERIC_PATTERNS = [
 ]
 
 # --------------------------------------------------
-# Pomocné funkce pro převod a validaci dat
+# Helper functions for converting and validating dates
 # --------------------------------------------------
 def iso_to_dt(raw_str: str) -> dt.datetime:
     """
-    Převede ISO 8601 řetězec (např. "2023-05-12T14:30:00Z") na datetime objekt v UTC.
+    Convert an ISO 8601 string (e.g. "2023-05-12T14:30:00Z") to a UTC datetime object.
     """
     try:
         parsed = dt.datetime.fromisoformat(raw_str.replace("Z", "+00:00"))
@@ -57,10 +56,10 @@ def iso_to_dt(raw_str: str) -> dt.datetime:
 
 def date_from_name(name: str) -> Optional[dt.datetime]:
     """
-    Pokusí se podle jména souboru vysledovat datum podle předefinovaných formátů
-    nebo podle regexů. Vrací datetime (UTC) nebo None.
+    Try to derive a date from the filename using predefined formats
+    or regex patterns. Returns a datetime in UTC or None.
     """
-    # Nejprve zkusit všechny FILENAME_PATTERNS
+    # First try all FILENAME_PATTERNS
     for pattern in FILENAME_PATTERNS:
         try:
             candidate = dt.datetime.strptime(name, pattern)
@@ -68,7 +67,7 @@ def date_from_name(name: str) -> Optional[dt.datetime]:
         except Exception:
             continue
 
-    # Pokud žádný pattern nevyhovuje, zkusit GENERIC_PATTERNS
+    # If no pattern matches, try GENERIC_PATTERNS
     for regex in GENERIC_PATTERNS:
         match = re.search(regex, name)
         if match:
@@ -87,42 +86,43 @@ def date_from_name(name: str) -> Optional[dt.datetime]:
 
 def validate_date(dt_obj: Optional[dt.datetime]) -> bool:
     """
-    Zkontroluje, zda daný datetime objekt je v rozmezí [INVALID_LOWER, INVALID_UPPER].
-    Vrací True, pokud dt_obj není None a spadá do rozmezí, jinak False.
+    Check whether the datetime object is in the range [INVALID_LOWER, current time + 1 day].
+    Returns True if dt_obj is not None and within the range, otherwise False.
     """
     if dt_obj is None:
         return False
-    return INVALID_LOWER <= dt_obj <= INVALID_UPPER
+    invalid_upper = dt.datetime.now(UTC) + dt.timedelta(days=1)
+    return INVALID_LOWER <= dt_obj <= invalid_upper
 
 # --------------------------------------------------
-# Hlavní funkce: pyramida jistoty pick_date
+# Main function: pick_date using the pyramid of certainty
 # --------------------------------------------------
 def pick_date(entry: dict) -> Tuple[Optional[dt.datetime], str]:
     """
-    Určí nejjistější datum pořízení podle tzv. pyramidy jistoty.
-    Vstup: entry – slovník s metadaty souboru z OneDrive (Graph API response).
-    Výstup: (datetime v UTC nebo None, metoda jako řetězec).
-    Metoda je jeden z: 'exif-photo', 'exif-video', 'upload-created',
+    Determine the most reliable capture date based on the so-called pyramid of certainty.
+    Input: entry – dictionary with file metadata from OneDrive (Graph API response).
+    Output: (datetime in UTC or None, method as a string).
+    Method is one of: 'exif-photo', 'exif-video', 'upload-created',
                       'folder', 'filename', 'fs_modified', 'fs_created', 'unknown'.
     """
-    # 1) EXIF datum pro fotky
+    # 1) EXIF date for photos
     photo_meta = entry.get("photo", {})
     if photo_meta.get("takenDateTime"):
         return iso_to_dt(photo_meta["takenDateTime"]), "exif-photo"
 
-    # 2) EXIF datum pro videa
+    # 2) EXIF date for videos
     video_meta = entry.get("video", {})
     if video_meta.get("takenDateTime"):
         return iso_to_dt(video_meta["takenDateTime"]), "exif-video"
 
-    # 3) Pokud je to video (podle přípony), použít createdDateTime jako upload timestamp
+    # 3) If it's a video (by extension), use createdDateTime as the upload timestamp
     name_lower = entry.get("name", "").lower()
     if name_lower.endswith((".mp4", ".mov", ".mkv", ".avi")):
         created = entry.get("createdDateTime")
         if created:
             return iso_to_dt(created), "upload-created"
 
-    # 4) Datum z názvu rodičovské složky (YYYY-MM nebo YYYY_MM_DD)
+    # 4) Date from parent folder name (YYYY-MM or YYYY_MM_DD)
     parent_path = entry.get("parentReference", {}).get("path", "")
     folder_match = re.search(r"/(\d{4})[-_](\d{2})(?:[-_](\d{2}))?$", parent_path)
     if folder_match:
@@ -133,12 +133,12 @@ def pick_date(entry: dict) -> Tuple[Optional[dt.datetime], str]:
         except Exception:
             pass
 
-    # 5) Datum z názvu souboru
+    # 5) Date from filename
     dt_from_name = date_from_name(entry.get("name", ""))
     if dt_from_name:
         return dt_from_name, "filename"
 
-    # 6) Souborové časy: vezměme nejstarší z lastModified a fileSystemInfo.created
+    # 6) File timestamps: take the oldest of lastModified and fileSystemInfo.created
     fs_info = entry.get("fileSystemInfo", {})
     candidates: list[Tuple[dt.datetime, str]] = []
     for key, tag in [("lastModifiedDateTime", "fs_modified"), ("createdDateTime", "fs_created")]:
@@ -153,23 +153,23 @@ def pick_date(entry: dict) -> Tuple[Optional[dt.datetime], str]:
         oldest, method = min(candidates, key=lambda x: x[0])
         return oldest, method
 
-    # 7) Fallback: upload timestamp (createdDateTime) obecně
+    # 7) Fallback: general upload timestamp (createdDateTime)
     created = entry.get("createdDateTime")
     if created:
         return iso_to_dt(created), "upload-created"
 
-    # 8) Žádný zdroj – neznámé datum
+    # 8) No source – unknown date
     return None, "unknown"
 
 # --------------------------------------------------
-# Volitelná pomocná funkce: sestaví cílovou cestu na základě data
+# Optional helper function: build the target path based on the date
 # --------------------------------------------------
 def determine_target_path(entry: dict) -> Tuple[str, str]:
     """
-    Kombinovaná funkce, která vrátí vhodnou relativní cílovou cestu (ve struktuře
-    YEAR/YEAR_MONTH) nebo 'Unsorted', a současně vrátí metodu (string).
-    Pokud datum není platné (nebo je None), vrátí ('Unsorted', method).
-    Jinak vrátí ('YYYY/YYYY_MM', method).
+    Combined function that returns the appropriate relative target path in the
+    structure YEAR/YEAR_MONTH or 'Unsorted', and also returns the method.
+    If the date is invalid (or None), returns ('Unsorted', method).
+    Otherwise returns ('YYYY/YYYY_MM', method).
     """
     when, method = pick_date(entry)
     if not validate_date(when):
