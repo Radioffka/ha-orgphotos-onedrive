@@ -3,7 +3,7 @@ url: https://github.com/Radioffka/ha-orgphotos-onedrive
 maintainer: Martin Král
 
 addons:
-  - slug: orgphotos_onedrive
+  - slug: orgphotos-onedrive
     name: OrgPhotos OneDrive
     version: 1.0.0
     image: "ghcr.io/radioffka/orgphotos-onedrive-{arch}"
