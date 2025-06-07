@@ -1,56 +1,48 @@
 # OrgPhotos OneDrive Add-on
 
-**Verze 2.10 (2025-05-26)**
+**Version 2.10 (2025-05-26)**
 
-„OrgPhotos“ je Home Assistant add-on, který **robustně třídí** soubory ve vaší OneDrive složce podle data (rok/měsíc), přímo v cloudu, pomocí Microsoft Graph API.
+*OrgPhotos* is a Home Assistant add-on that robustly sorts files in your OneDrive folder by date (year/month), directly in the cloud, using the Microsoft Graph API.
 
----
+## Key Features
 
-## Klíčové vlastnosti
+- **Pyramid of certainty for date selection**  
+  1. EXIF metadata (`photo.takenDateTime`, `video.takenDateTime`)  
+  2. Parent folder date (e.g. `2022-09`)  
+  3. Date in file name (generic regexes + common patterns)  
+  4. Earliest of `fileSystemInfo.lastModifiedDateTime` and `fileSystemInfo.createdDateTime`  
+  5. OneDrive `createdDateTime` (upload time)  
+- **Timezone-aware handling** (all in UTC), without Python warnings  
+- **Duplicate handling** with `@microsoft.graph.conflictBehavior = replace`  
+- **Automatic token refresh** on expiration (HTTP 401)  
+- **Infinite loop** with adjustable `DEBOUNCE_SECS` pause (configurable via GUI)  
+- **Invalid or future dates** are sent to the `UNSORTED` folder  
+- **Detailed logging** of every operation (method, date, destination path)  
 
-- **Pyramida jistoty** pro výběr data:
-  1. EXIF metadata (`photo.takenDateTime`, `video.takenDateTime`)
-  2. Datum v rodičovské složce (např. `2022-09`)
-  3. Datum v názvu souboru (generické regexy + common patterns)
-  4. Nejstarší z `fileSystemInfo.lastModifiedDateTime` a `fileSystemInfo.createdDateTime`
-  5. OneDrive `createdDateTime` (upload time)
-- **Timezone-aware** práce s časem (vše v UTC), bez varování Pythonu
-- **Přepis duplicit** pomocí `@microsoft.graph.conflictBehavior = replace`
-- **Automatické obnovení** přístupového tokenu při vypršení (HTTP 401)
-- **Nekonečná smyčka** s pauzou `DEBOUNCE_SECS` (nastavitelnou v GUI)
-- **Neplatné nebo budoucí datum** posílá do složky `UNSORTED`
-- Podrobný **log** každé operace (metoda, datum, cílová cesta)
+## Requirements
 
----
+- Home Assistant with add-on support  
+- OneDrive-Sync add-on or other mechanism to obtain a `refresh_token`  
+- Write access to the `refresh_token` file (typically `/data/refresh_token`)  
 
-## Požadavky
+## Installation
 
-1. **Home Assistant** s podporou add-onů  
-2. **OneDrive-Sync** add-on nebo jiná cesta k získání `refresh_token`  
-3. Zápisový přístup k souboru s `refresh_token` (typicky `/data/refresh_token`)
+1. In Home Assistant, go to **Supervisor → Add-on Store → Add Repository**.  
+2. Enter the repository URL and save.  
+3. In **Supervisor → Add-on → OrgPhotos OneDrive**, click **Install**.  
 
----
-
-## Instalace add-onu
-
-1. Vytvoř si repozitář s tímto add-onem v Supervisor → Add-on Store → Přidat zdroj.  
-2. V Supervisor → Add-on → OrgPhotos OneDrive klikni **Install**.
-
----
-
-## Konfigurace (`config.json`)
+## Configuration (`config.json`)
 
 ```yaml
 options:
-  source_dir: "Inbox"            # zdrojová složka v OneDrive
-  target_dir: "OrgPhotos"        # kořen pro třídění (vytvoří podsložky)
-  debounce_secs: 20              # interval mezi průchody (s)
-  onedrive_client_id: "<GUID>"   # Azure AD aplikace
-  onedrive_tenant_id: "common"   # Tenant ID nebo 'common'
+  source_dir: "Inbox"            # OneDrive folder to watch
+  target_dir: "OrgPhotos"        # Root folder for sorting (creates subfolders)
+  debounce_secs: 20              # Interval between scans (seconds)
+  onedrive_client_id: "<GUID>"   # Azure AD application (client) ID
+  onedrive_tenant_id: "common"   # Tenant ID or 'common'
+Execution (run.sh)
 
-Spuštění (run.sh)
-
-Add-on automaticky načte konfiguraci přes bashio a nastaví environment proměnné:
+The add-on automatically reads the configuration via bashio and sets environment variables:
 
 export SOURCE_DIR=$(bashio::config 'source_dir')
 export TARGET_DIR=$(bashio::config 'target_dir')
@@ -59,23 +51,23 @@ export ONEDRIVE_CLIENT_ID=$(bashio::config 'onedrive_client_id')
 export ONEDRIVE_TENANT_ID=$(bashio::config 'onedrive_tenant_id')
 exec python3 -u /addon/OrgPhotos.py
 
-Logování
+Logging
 
-    INFO: spuštění (run start), přesunuté soubory, přepsané duplicitní soubory, pauza (Sleeping X seconds)
+    INFO: startup (run start), moved files, replaced duplicates, pause (Sleeping X seconds)
 
-    WARNING: soubory se špatným/absurdním datem (přesun do Unsorted)
+    WARNING: files with invalid or absurd dates (moved to Unsorted)
 
-    ERROR: nečekané chyby (token refresh, HTTP chyby mimo 404)
+    ERROR: unexpected errors (token refresh failures, HTTP errors other than 404)
 
-Složka Unsorted
+Unsorted Folder
 
-Pokud validate_date() vyhodnotí čas jako neplatný (před rokem 1990 nebo v budoucnosti), soubor se přesune do:
+When validate_date() determines a date is invalid (before 1990 or in the future), files are moved to:
 
 <TARGET_DIR>/Unsorted/
 
-Umožňuje ruční kontrolu nesprávně pojmenovaných či poškozených souborů.
-Údržba
+This allows manual review of incorrectly named or corrupted files.
+Maintenance
 
-    Pro další formáty názvů (lokální Windows screenshoty, nestandardní prefixy) uprav FILENAME_PATTERNS nebo GENERIC_PATTERNS v OrgPhotos.py.
+    To support additional filename formats (Windows screenshots, unconventional prefixes), adjust FILENAME_PATTERNS or GENERIC_PATTERNS in OrgPhotos.py.
 
-    Sledování běhu add-onu a případné restartování v Supervisoru.
+    Monitor the add-on in Supervisor and restart if necessary.
