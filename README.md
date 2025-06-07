@@ -1,6 +1,6 @@
 # OrgPhotos OneDrive Add-on
 
-**Version 2.10 (2025-05-26)**
+**Version 2.1.6 (2025-05-26)**
 
 *OrgPhotos* is a Home Assistant add-on that robustly sorts files in your OneDrive folder by date (year/month), directly in the cloud, using the Microsoft Graph API.
 
@@ -40,6 +40,8 @@ options:
   debounce_secs: 20              # Interval between scans (seconds)
   onedrive_client_id: "<GUID>"   # Azure AD application (client) ID
   onedrive_tenant_id: "common"   # Tenant ID or 'common'
+```
+
 Execution (run.sh)
 
 The add-on automatically reads the configuration via bashio and sets environment variables:
@@ -68,6 +70,6 @@ When validate_date() determines a date is invalid (before 1990 or in the future)
 This allows manual review of incorrectly named or corrupted files.
 Maintenance
 
-    To support additional filename formats (Windows screenshots, unconventional prefixes), adjust FILENAME_PATTERNS or GENERIC_PATTERNS in OrgPhotos.py.
+    To support additional filename formats (Windows screenshots, unconventional prefixes), adjust FILENAME_PATTERNS or GENERIC_PATTERNS in `sorting_logic.py`.
 
     Monitor the add-on in Supervisor and restart if necessary.

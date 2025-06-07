@@ -5,5 +5,5 @@ maintainer: Martin Král
 addons:
   - slug: orgphotos-onedrive
     name: OrgPhotos OneDrive
-    version: 1.0.0
+    version: 2.1.6
     image: "ghcr.io/radioffka/orgphotos-onedrive-{arch}"
