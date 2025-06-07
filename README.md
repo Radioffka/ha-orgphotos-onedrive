@@ -1,6 +1,6 @@
 # OrgPhotos OneDrive Add-on
 
-**Version 2.1.6 (2025-05-26)**
+**Version 2.1.7 (2025-05-26)**
 
 *OrgPhotos* is a Home Assistant add-on that robustly sorts files in your OneDrive folder by date (year/month), directly in the cloud, using the Microsoft Graph API.
 
