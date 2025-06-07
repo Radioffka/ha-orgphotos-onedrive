@@ -1,0 +1,31 @@
+{
+  "name": "OrgPhotos OneDrive",
+  "version": "2.1.6",
+  "slug": "orgphotos-onedrive",
+  "description": "Třídí soubory z SOURCE_DIR do TARGET_DIR na OneDrive podle roku/měsíce.",
+  "startup": "services",
+  "init": false,
+  "boot": "auto",
+  "arch": ["aarch64", "armv7", "amd64", "i386"],
+  "map": ["media:rw", "config:ro", "share:rw", "data:rw"],
+  "build": {
+    "args": { "BUILD_FROM": "ghcr.io/hassio-addons/addon-base-python:16.1.4" }
+  },
+  "options": {
+    "source_dir": "Inbox",
+    "target_dir": "OrgPhotos",
+    "debounce_secs": 300,
+    "onedrive_client_id": "10d8bf53-41d7-443f-b2ff-223b4bf6c3b4",
+    "onedrive_tenant_id": "common",
+    "log_level": "INFO"      
+  },
+  "schema": {
+    "source_dir": "str",
+    "target_dir": "str",
+    "debounce_secs": "int",
+    "onedrive_client_id": "str",
+    "onedrive_tenant_id": "str",
+    "log_level": "str"       
+  }
+}
+
